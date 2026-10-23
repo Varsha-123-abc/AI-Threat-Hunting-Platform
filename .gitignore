@@ -1,0 +1,35 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+venv/
+.venv/
+env/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+data/*.db
+data/*.db-*
+reports/*.pdf
+*.backup
+*.before-*
+*.audit-backup
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local backups
+*.backup
+*.before-*
+*.audit-backup
+
+# Python environments and generated files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+venv/
+.venv/

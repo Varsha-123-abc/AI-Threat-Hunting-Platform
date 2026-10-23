@@ -1,0 +1,439 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incident Investigation | Threat Hunting</title>
+
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 25px;
+            background: #0b1120;
+            color: #e2e8f0;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: auto;
+        }
+
+        h1, h2, h3 { color: #38bdf8; }
+
+        h1 { margin-bottom: 8px; }
+
+        .subtitle { color: #94a3b8; }
+
+        a { color: #38bdf8; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            margin-bottom: 24px;
+        }
+
+        .panel {
+            background: #172033;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 22px;
+            margin: 20px 0;
+            min-width: 0;
+        }
+
+        .overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 16px;
+        }
+
+        .metric {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 18px;
+        }
+
+        .metric-label {
+            color: #94a3b8;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+
+        .metric-value {
+            font-size: 25px;
+            font-weight: bold;
+            overflow-wrap: anywhere;
+        }
+
+        .Critical { color: #fb7185; }
+        .High { color: #f97316; }
+        .Medium { color: #facc15; }
+        .Low { color: #4ade80; }
+
+        .score-track {
+            width: 100%;
+            height: 12px;
+            margin-top: 12px;
+            background: #334155;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .score-fill {
+            height: 100%;
+            background: #38bdf8;
+            border-radius: 10px;
+        }
+
+        .risk-summary {
+            border-left: 4px solid #f97316;
+            padding: 14px 16px;
+            background: #0f172a;
+            border-radius: 5px;
+            line-height: 1.6;
+        }
+
+        .table-wrap { overflow-x: auto; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 650px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 13px;
+            border-bottom: 1px solid #334155;
+            vertical-align: top;
+        }
+
+        th { color: #38bdf8; background: #0f172a; }
+
+        td { overflow-wrap: anywhere; }
+
+        .alert-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 18px;
+            margin: 15px 0;
+        }
+
+        .alert-heading {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border: 1px solid currentColor;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        code { overflow-wrap: anywhere; }
+
+        @media (max-width: 600px) {
+            body { padding: 14px; }
+            .panel { padding: 15px; }
+            .metric-value { font-size: 21px; }
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+
+    <div class="actions">
+        <a href="/">← Back to Dashboard</a>
+        <a href="{{ url_for('download_incident_report', incident_id=incident['incident_id']) }}">
+            Download PDF Incident Report ↓
+        </a>
+    </div>
+
+    <h1>Incident Investigation</h1>
+    <p class="subtitle">Security incident analysis and threat hunting evidence</p>
+
+    <div class="panel">
+        <h2>Investigation Notes</h2>
+        <p class="subtitle">
+            Record evidence, observations, investigation steps, and findings.
+        </p>
+
+        <form method="POST"
+              action="{{ url_for('add_incident_note', incident_id=incident['incident_id']) }}">
+            <label for="note">New investigation note</label>
+
+            <textarea
+                id="note"
+                name="note"
+                rows="5"
+                maxlength="5000"
+                required
+                placeholder="Example: Reviewed authentication logs and identified repeated login failures from the same source IP."
+                style="display: block; width: 100%; max-width: 100%;
+                       margin-top: 10px; padding: 12px;
+                       box-sizing: border-box; border-radius: 8px;
+                       background: #0f172a; color: #e2e8f0;
+                       border: 1px solid #334155; font-family: Arial, sans-serif;"
+            ></textarea>
+
+            <button
+                type="submit"
+                style="margin-top: 12px; padding: 10px 16px;
+                       border: 1px solid #38bdf8; border-radius: 6px;
+                       background: #0f172a; color: #38bdf8;
+                       cursor: pointer;"
+            >Add Note</button>
+        </form>
+
+        <h3>Previous Notes</h3>
+
+        {% if notes %}
+            {% for item in notes %}
+            <div class="alert-card">
+                <p>{{ item["note"] }}</p>
+                <p class="subtitle">
+                    Saved at: {{ item["created_at"] }}
+                </p>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="subtitle">No investigation notes recorded yet.</p>
+        {% endif %}
+    </div>
+
+
+    <div class="panel">
+        <h2>{{ incident["incident_id"] }}</h2>
+
+        <div class="overview">
+            <div class="metric">
+                <div class="metric-label">THREAT SCORE</div>
+                <div class="metric-value">
+                    {{ incident.get("threat_score", 0) }}/100
+                </div>
+                <div class="score-track">
+                    <div class="score-fill"
+                         style="width: {{ [[incident.get('threat_score', 0)|int, 0]|max, 100]|min }}%;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric">
+                <div class="metric-label">INCIDENT SEVERITY</div>
+                <div class="metric-value {{ incident['severity'] }}">
+                    {{ incident["severity"] }}
+                </div>
+            </div>
+
+            <div class="metric">
+                <div class="metric-label">RESPONSE PRIORITY</div>
+                <div class="metric-value {{ incident.get('priority', 'Low') }}">
+                    {{ incident.get("priority", "Low") }}
+                </div>
+            </div>
+
+            <div class="metric">
+                <div class="metric-label">DETECTION ALERTS</div>
+                <div class="metric-value">{{ incident["alerts"] | length }}</div>
+            </div>
+        </div>
+
+
+        <h3>Investigation Status</h3>
+
+        <form method="POST"
+              action="{{ url_for('update_status', incident_id=incident['incident_id']) }}">
+            <label for="status">Current status:</label>
+
+            <select id="status" name="status"
+                    style="margin: 10px; padding: 10px; border-radius: 6px;"
+                    required>
+                <option value="New"
+                    {% if incident.get('status', 'New') == 'New' %}selected{% endif %}>
+                    New
+                </option>
+
+                <option value="Investigating"
+                    {% if incident.get('status') == 'Investigating' %}selected{% endif %}>
+                    Investigating
+                </option>
+
+                <option value="Resolved"
+                    {% if incident.get('status') == 'Resolved' %}selected{% endif %}>
+                    Resolved
+                </option>
+            </select>
+
+            <button type="submit"
+                    style="padding: 10px 16px; border: 1px solid #38bdf8;
+                           border-radius: 6px; background: #0f172a;
+                           color: #38bdf8; cursor: pointer;">
+                Save Status
+            </button>
+        </form>
+
+        <h3>Risk Summary</h3>
+        <div class="risk-summary">
+            {{ incident.get("risk_summary", "Not assessed") }}
+        </div>
+
+        <p><strong>Host:</strong> {{ incident["host"] }}</p>
+        <p><strong>Users:</strong> {{ incident["users"] | join(", ") }}</p>
+        <p><strong>Source IPs:</strong> {{ incident["source_ips"] | join(", ") }}</p>
+        <p><strong>Created at:</strong> {{ incident["created_at"] }}</p>
+    </div>
+
+
+    <div class="panel">
+        <h2>Investigation Audit Trail</h2>
+        <p class="subtitle">
+            Chronological record of incident investigation actions.
+        </p>
+
+        {% if audit_events %}
+            {% for event in audit_events %}
+            <div class="alert-card">
+                <h3>{{ event["action"] }}</h3>
+                <p>{{ event["details"] }}</p>
+                <p class="subtitle">
+                    Recorded at: {{ event["created_at"] }}
+                </p>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="subtitle">
+                No audit events recorded for this incident yet.
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="panel">
+        <h2>Detection Alerts</h2>
+        <p class="subtitle">Rules triggered by suspicious security events</p>
+
+        {% for alert in incident["alerts"] %}
+        <div class="alert-card">
+            <div class="alert-heading">
+                <h3>{{ alert.get("rule", "Unnamed detection rule") }}</h3>
+                <span class="badge {{ alert.get('severity', 'Low') }}">
+                    {{ alert.get("severity", "Low") }}
+                </span>
+            </div>
+
+            <p>
+                <strong>Threat Score:</strong>
+                {{ alert.get("threat_score", 0) }}/100
+            </p>
+
+            <p>
+                <strong>Priority:</strong>
+                <span class="{{ alert.get('priority', 'Low') }}">
+                    {{ alert.get("priority", "Low") }}
+                </span>
+            </p>
+
+            <div class="score-track">
+                <div class="score-fill"
+                     style="width: {{ [[alert.get('threat_score', 0)|int, 0]|max, 100]|min }}%;">
+                </div>
+            </div>
+
+
+<p>{{ alert.get("description", "No description available.") }}</p>
+
+<div class="risk-summary">
+    <h3>MITRE ATT&amp;CK Mapping</h3>
+
+    <p>
+        <strong>Technique ID:</strong>
+        {{ alert.get("mitre_technique_id", "Not mapped") }}
+    </p>
+
+    <p>
+        <strong>Technique:</strong>
+        {{ alert.get("mitre_technique", "Not mapped") }}
+    </p>
+
+    <p>
+        <strong>Tactic:</strong>
+        {{ alert.get("mitre_tactic", "Not mapped") }}
+    </p>
+
+    {% if alert.get("mitre_url") %}
+    <p>
+        <a href="{{ alert['mitre_url'] }}" target="_blank"
+           rel="noopener noreferrer">
+            View official MITRE ATT&amp;CK reference ↗
+        </a>
+    </p>
+    {% endif %}
+</div>
+
+            {% if alert.get("count") is not none %}
+            <p><strong>Related event count:</strong> {{ alert["count"] }}</p>
+            {% endif %}
+        </div>
+        {% else %}
+        <p>No alerts recorded for this incident.</p>
+        {% endfor %}
+    </div>
+
+    <div class="panel">
+        <h2>Investigation Timeline</h2>
+        <p class="subtitle">
+            Review recorded events to understand the sequence of activity.
+        </p>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Event</th>
+                        <th>User</th>
+                        <th>Process</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for event in incident["timeline"] %}
+                    <tr>
+                        <td>{{ event.get("timestamp", "N/A") }}</td>
+                        <td>{{ event.get("event_type", "N/A") }}</td>
+                        <td>{{ event.get("user", "N/A") }}</td>
+                        <td>{{ event.get("process", "N/A") }}</td>
+                        <td>{{ event.get("details", "N/A") }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5">No timeline events available.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <p class="subtitle">
+        AI-Powered Threat Hunting Platform · Threat scores are rule-based risk estimates,
+        not proof that an attack succeeded.
+    </p>
+
+</div>
+</body>
+</html>

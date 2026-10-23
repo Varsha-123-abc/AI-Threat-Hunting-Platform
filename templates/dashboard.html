@@ -1,0 +1,320 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Threat Hunting Platform</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 25px;
+            background: #0b1120;
+            color: #e2e8f0;
+            font-family: Arial, sans-serif;
+        }
+
+        h1 { color: #38bdf8; }
+
+        .subtitle { color: #94a3b8; }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 25px 0;
+        }
+
+        .card, .panel {
+            background: #172033;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #334155;
+        }
+
+        .number {
+            font-size: 30px;
+            font-weight: bold;
+            margin-top: 8px;
+        }
+
+        .charts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            min-width: 850px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #334155;
+        }
+
+        th { color: #38bdf8; }
+
+        .table-wrap { overflow-x: auto; }
+
+        a { color: #38bdf8; }
+
+        select, button {
+            padding: 9px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .Critical { color: #fb7185; }
+        .High { color: #f97316; }
+        .Medium { color: #facc15; }
+        .Low { color: #4ade80; }
+
+        .score {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .score-track {
+            height: 6px;
+            width: 100px;
+            background: #334155;
+            border-radius: 10px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+
+        .score-fill {
+            height: 100%;
+            background: #38bdf8;
+        }
+
+        .priority {
+            display: inline-block;
+            padding: 5px 9px;
+            border-radius: 5px;
+            background: #263449;
+            font-weight: bold;
+        }
+
+        .status {
+             display: inline-block;
+             padding: 5px 9px;
+              border-radius: 5px;
+             font-weight: bold;
+              white-space: nowrap;
+}
+
+.status-New {
+    background: #263449;
+    color: #38bdf8;
+}
+
+.status-Investigating {
+    background: #422006;
+    color: #fbbf24;
+}
+
+.status-Resolved {
+    background: #14532d;
+    color: #86efac;
+}
+
+        .summary {
+            color: #94a3b8;
+            font-size: 13px;
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <h1>AI-Powered Threat Hunting Platform</h1>
+    <p class="subtitle">
+        Security monitoring, threat scoring and incident investigation
+    </p>
+
+
+    <div class="cards">
+        <div class="card">
+            Total Incidents
+            <div class="number">{{ severity_counts.values() | sum }}</div>
+        </div>
+        <div class="card">
+            Critical
+            <div class="number Critical">{{ severity_counts["Critical"] }}</div>
+        </div>
+        <div class="card">
+            High
+            <div class="number High">{{ severity_counts["High"] }}</div>
+        </div>
+        <div class="card">
+            Medium
+            <div class="number Medium">{{ severity_counts["Medium"] }}</div>
+        </div>
+        <div class="card">
+            Low
+            <div class="number Low">{{ severity_counts["Low"] }}</div>
+        </div>
+        <div class="card">
+            New Incidents
+            <div class="number">{{ status_counts["New"] }}</div>
+        </div>
+        <div class="card">
+            Investigating
+            <div class="number">{{ status_counts["Investigating"] }}</div>
+        </div>
+        <div class="card">
+            Resolved
+            <div class="number">{{ status_counts["Resolved"] }}</div>
+        </div>
+    </div>
+
+    <div class="charts">
+        <div class="panel">
+            <h3>Incident Severity Distribution</h3>
+            <canvas id="severityChart"></canvas>
+        </div>
+        <div class="panel">
+            <h3>Incident Count by Severity</h3>
+            <canvas id="barChart"></canvas>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top: 25px;">
+        <h2>Security Incidents</h2>
+
+
+        <form method="get">
+            <label for="severity">Filter severity:</label>
+            <select name="severity" id="severity">
+                {% for level in ["All", "Critical", "High", "Medium", "Low"] %}
+                <option value="{{ level }}"
+                    {% if selected_severity == level %}selected{% endif %}>
+                    {{ level }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <label for="status">Filter status:</label>
+            <select name="status" id="status">
+                {% for status in ["All", "New", "Investigating", "Resolved"] %}
+                <option value="{{ status }}"
+                    {% if selected_status == status %}selected{% endif %}>
+                    {{ status }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <button type="submit">Apply Filters</button>
+            <a href="{{ url_for('dashboard') }}">Clear Filters</a>
+        </form>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Incident ID</th>
+                        <th>Host</th>
+                        <th>Severity</th>
+                        <th>Threat Score</th>
+                        <th>Priority</th>
+                        <th>Users</th>
+                        <th>Alerts</th>
+                        <th>Risk Summary</th>
+                        <th>Status</th>
+                        <th>Investigation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for incident in incidents %}
+                    <tr>
+                        <td>{{ incident["incident_id"] }}</td>
+                        <td>{{ incident["host"] }}</td>
+                        <td class="{{ incident['severity'] }}">
+                            {{ incident["severity"] }}
+                        </td>
+                        <td>
+                            <div class="score">
+                                {{ incident["threat_score"] }}/100
+                            </div>
+                            <div class="score-track">
+                                <div class="score-fill"
+                                     style="width: {{ incident['threat_score'] | int }}%;">
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="priority {{ incident['priority'] }}">
+                                {{ incident["priority"] }}
+                            </span>
+                        </td>
+                        <td>{{ incident["users"] | join(", ") if incident["users"] is sequence and incident["users"] is not string else incident["users"] }}</td>
+                        <td>{{ incident["alerts"] | from_json | length if incident["alerts"] is string else incident["alerts"] | length }}</td>
+                        <td class="summary">{{ incident["risk_summary"] }}</td>
+                        <td>
+    <span class="status status-{{ incident.get('status', 'New') }}">
+        {{ incident.get('status', 'New') }}
+    </span>
+</td>
+                        <td>
+                            <a href="{{ url_for('incident_details', incident_id=incident['incident_id']) }}">
+                                View Details
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10">No incidents found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const labels = ["Critical", "High", "Medium", "Low"];
+        const values = [
+            {{ severity_counts["Critical"] }},
+            {{ severity_counts["High"] }},
+            {{ severity_counts["Medium"] }},
+            {{ severity_counts["Low"] }}
+        ];
+
+        new Chart(document.getElementById("severityChart"), {
+            type: "doughnut",
+            data: {
+                labels: labels,
+                datasets: [{ data: values }]
+            },
+            options: { responsive: true }
+        });
+
+        new Chart(document.getElementById("barChart"), {
+            type: "bar",
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: "Incidents",
+                    data: values
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true, ticks: { precision: 0 } }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
