@@ -1,5 +1,5 @@
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -199,33 +199,53 @@ def detect_threats(events):
             })
 
     # Rule 4: File download followed by an outbound connection
+    def parse_event_time(event):
+        """Return a timezone-normalized timestamp, or None if invalid."""
+        value = event.get("timestamp")
+
+        if not value or not isinstance(value, str):
+            return None
+
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            return None
+
+        # Treat timestamps without a timezone as UTC.
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+
+        return parsed.astimezone(timezone.utc)
+
     for host, host_events in events_by_host.items():
         downloads = [
             event for event in host_events
-            if event["event_type"] == "file_download"
+            if event.get("event_type") == "file_download"
         ]
 
         connections = [
             event for event in host_events
-            if event["event_type"] == "outbound_connection"
+            if event.get("event_type") == "outbound_connection"
         ]
 
         for download in downloads:
-            download_time = datetime.fromisoformat(
-                download["timestamp"]
-            )
+            download_time = parse_event_time(download)
+            if download_time is None:
+                continue
 
             for connection in connections:
-                connection_time = datetime.fromisoformat(
-                    connection["timestamp"]
-                )
+                connection_time = parse_event_time(connection)
+                if connection_time is None:
+                    continue
 
                 same_ip = (
-                    download["source_ip"] == connection["source_ip"]
+                    download.get("source_ip")
+                    == connection.get("source_ip")
                 )
+                elapsed = connection_time - download_time
                 within_window = (
                     timedelta(0)
-                    <= connection_time - download_time
+                    <= elapsed
                     <= timedelta(minutes=15)
                 )
 
@@ -234,8 +254,8 @@ def detect_threats(events):
                         "rule": "Download and Outbound Connection",
                         "severity": "High",
                         "host": host,
-                        "user": download["user"],
-                        "source_ip": download["source_ip"],
+                        "user": download.get("user", "Unknown"),
+                        "source_ip": download.get("source_ip"),
                         "timestamp": connection.get("timestamp"),
                         "description": (
                             "A file download was followed by an "
