@@ -13,6 +13,23 @@ A Python and Flask-based security monitoring and incident investigation project.
 - PDF incident reports with alerts, notes, timelines, and audit history.
 - SQLite storage for incident records.
 - Automated tests for detection metadata and incident correlation.
+## Screenshots
+
+### 1. Dashboard
+The main dashboard showing security monitoring metrics, alerts, and incident summaries.
+
+![AI Threat Hunting Platform Dashboard](screenshots/dashboard.png)
+
+### 2. Alerts and Incidents
+The incident overview showing detected alerts and correlated security incidents.
+
+![AI Threat Hunting Platform Alerts and Incidents](screenshots/incidents.png)
+
+### 3. Incident Investigation Details
+Incident-specific investigation details, including relevant incident information and evidence.
+
+![AI Threat Hunting Platform Incident Details](screenshots/incident-details.png)
+
 
 ## Technology Stack
 - Python, Flask, SQLite, ReportLab, pytest, and Chart.js.
